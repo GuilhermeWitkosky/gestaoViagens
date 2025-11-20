@@ -1,0 +1,7 @@
+gestaoViagens-backend/target/
+gestaoViagens-backend/.idea/
+gestaoViagens-backend/.classpath
+gestaoViagens-backend/.project
+gestaoViagens-frontend/node_modules/
+gestaoViagens-frontend/.next/
+gestaoViagens-frontend/.env.local
