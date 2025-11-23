@@ -1,7 +1,11 @@
-import { useEffect, useState, FormEvent } from "react";
+"use client";
+
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import { GoogleMap } from "../../../components/GoogleMap";
+import { ProtectedPage } from "../../../components/ProtectedPage";
+import { AppLayout } from "../../../components/AppLayout";
 import { apiFetch } from "../../../services/api";
+import { RouteMap } from "../../../components/RouteMap";
 
 type Local = {
   id: number;
@@ -9,6 +13,8 @@ type Local = {
   endereco: string;
   latitude: number | null;
   longitude: number | null;
+  observacoes: string | null;
+  ativo: boolean;
 };
 
 type Motorista = {
@@ -19,17 +25,21 @@ type Motorista = {
 
 export default function AdminNovaViagemPage() {
   const router = useRouter();
+
+  const [nome, setNome] = useState("");
+  const [motoristaId, setMotoristaId] = useState<number | "">("");
   const [locais, setLocais] = useState<Local[]>([]);
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [motoristaId, setMotoristaId] = useState<number | "">("");
-  const [nome, setNome] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function load() {
+    async function loadData() {
       setLoading(true);
       try {
         const [locaisResp, motoristasResp] = await Promise.all([
@@ -39,19 +49,79 @@ export default function AdminNovaViagemPage() {
 
         if (locaisResp.ok) {
           const data = (await locaisResp.json()) as Local[];
-          setLocais(data);
+          // apenas locais ativos podem ser usados para nova viagem
+          setLocais(data.filter((l) => l.ativo));
+        } else {
+          setLocais([]);
         }
 
         if (motoristasResp.ok) {
           const data = (await motoristasResp.json()) as Motorista[];
           setMotoristas(data);
+        } else {
+          setMotoristas([]);
         }
       } finally {
         setLoading(false);
       }
     }
-    load();
+
+    loadData();
   }, []);
+
+  function toggleLocal(id: number) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  // lista de locais para escolher, filtrada pelo campo de busca
+  const filteredLocais = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const base = [...locais].sort((a, b) => a.nome.localeCompare(b.nome));
+    if (!term) return base;
+    return base.filter((local) => local.nome.toLowerCase().includes(term));
+  }, [locais, searchTerm]);
+
+  // locais selecionados na ordem de rota (segue a ordem do array selectedIds)
+  const selectedLocaisOrdered = useMemo(() => {
+    return selectedIds
+      .map((id) => locais.find((l) => l.id === id) || null)
+      .filter((l): l is Local => l !== null);
+  }, [selectedIds, locais]);
+
+  // pontos para o mapa, na ordem atual
+  const routePoints = useMemo(() => {
+    return selectedLocaisOrdered
+      .filter(
+        (local) =>
+          local.latitude != null &&
+          local.longitude != null &&
+          !Number.isNaN(local.latitude) &&
+          !Number.isNaN(local.longitude)
+      )
+      .map((local, index) => ({
+        id: local.id,
+        nome: local.nome,
+        latitude: local.latitude as number,
+        longitude: local.longitude as number,
+        ordem: index + 1,
+      }));
+  }, [selectedLocaisOrdered]);
+
+  function reorderSelectedIds(fromId: number, toId: number) {
+    setSelectedIds((prev) => {
+      const fromIndex = prev.indexOf(fromId);
+      const toIndex = prev.indexOf(toId);
+      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+        return prev;
+      }
+      const newOrder = [...prev];
+      newOrder.splice(fromIndex, 1);
+      newOrder.splice(toIndex, 0, fromId);
+      return newOrder;
+    });
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -71,8 +141,9 @@ export default function AdminNovaViagemPage() {
     try {
       const body = {
         nome: nome.trim().length > 0 ? nome.trim() : null,
+        // a ordem enviada é a ordem atual do array (rota)
         locaisIds: selectedIds,
-        motoristaId: motoristaId,
+        motoristaId: motoristaId as number,
       };
 
       const resp = await apiFetch("/api/admin/viagens", {
@@ -82,70 +153,320 @@ export default function AdminNovaViagemPage() {
       });
 
       if (!resp.ok) {
-        setError("Erro ao criar viagem. Tente novamente.");
+        setError("Erro ao criar viagem. Verifique os dados e tente novamente.");
         return;
       }
 
-      const data = (await resp.json()) as { id: number };
-      router.push(`/admin/viagens/${data.id}`);
-    } catch {
-      setError("Erro ao criar viagem. Tente novamente.");
+      try {
+        const created = await resp.json();
+        if (created && created.id) {
+          router.push(`/admin/viagens/${created.id}`);
+          return;
+        }
+      } catch {
+        // se não vier JSON, volta para lista
+      }
+
+      router.push("/admin/viagens");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div>
-      <h1>Criar Nova Viagem</h1>
-      <form onSubmit={handleSubmit}>
-        <select
-          value={motoristaId}
-          onChange={(e) => setMotoristaId(Number(e.target.value))}
-        >
-          {motoristas.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.nome}
-            </option>
-          ))}
-        </select>
-
-        <div>
-          {locais.map((local) => (
-            <label key={local.id}>
-              <input
-                type="checkbox"
-                checked={selectedIds.includes(local.id)}
-                onChange={() =>
-                  setSelectedIds((prev) =>
-                    prev.includes(local.id)
-                      ? prev.filter((id) => id !== local.id)
-                      : [...prev, local.id]
-                  )
-                }
-              />
-              {local.nome}
-            </label>
-          ))}
+    <ProtectedPage allowedRoles={["ADMIN"]}>
+      <AppLayout role="ADMIN">
+        <div className="page-header">
+          <div>
+            <p className="page-subtitle">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => router.push("/admin/viagens")}
+              >
+                &larr; Voltar para viagens
+              </button>
+            </p>
+            <h1 className="page-title">Nova viagem</h1>
+            <p className="page-subtitle">
+              Defina o motorista responsável, escolha os locais e ajuste a
+              ordem da rota.
+            </p>
+          </div>
         </div>
 
-        <button type="submit">Criar Viagem</button>
-      </form>
+        <section className="form-grid">
+          <div className="card">
+            <h2 className="card-title">Dados da viagem</h2>
+            <p className="card-description">
+              Informe um nome opcional, selecione o motorista e escolha os
+              locais que farão parte da rota.
+            </p>
 
-      {selectedIds.length > 0 && (
-        <div>
-          <GoogleMap
-            markers={locais
-              .filter((local) => selectedIds.includes(local.id))
-              .filter((local) => local.latitude !== null && local.longitude !== null)
-              .map((local) => ({
-                ...local,
-                latitude: local.latitude as number,
-                longitude: local.longitude as number,
-              }))}
-          />
-        </div>
-      )}
-    </div>
+            {loading ? (
+              <p className="card-description" style={{ marginTop: 12 }}>
+                Carregando locais e motoristas...
+              </p>
+            ) : (
+              <form onSubmit={handleSubmit}>
+                <label className="field-label">Nome da viagem (opcional)</label>
+                <input
+                  className="input"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  placeholder="Ex.: Rota Norte - Clientes Jaraguá"
+                />
+
+                <label className="field-label" style={{ marginTop: 10 }}>
+                  Motorista responsável
+                </label>
+                <select
+                  className="input"
+                  value={motoristaId}
+                  onChange={(e) =>
+                    setMotoristaId(
+                      e.target.value ? Number(e.target.value) : ""
+                    )
+                  }
+                >
+                  <option value="">Selecione um motorista</option>
+                  {motoristas.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome} ({m.email})
+                    </option>
+                  ))}
+                </select>
+
+                <label className="field-label" style={{ marginTop: 10 }}>
+                  Buscar local
+                </label>
+                <input
+                  className="input"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Digite parte do nome do local"
+                />
+
+                <label className="field-label" style={{ marginTop: 10 }}>
+                  Locais disponíveis
+                </label>
+                {locais.length === 0 ? (
+                  <p className="card-description">
+                    Nenhum local ativo disponível. Cadastre locais na tela de
+                    Locais.
+                  </p>
+                ) : (
+                  <div
+                    style={{
+                      maxHeight: 220,
+                      overflowY: "auto",
+                      borderRadius: 8,
+                      border: "1px solid #e5e7eb",
+                      padding: 8,
+                      marginTop: 4,
+                    }}
+                  >
+                    {filteredLocais.length === 0 ? (
+                      <p
+                        className="card-description"
+                        style={{ marginBottom: 0 }}
+                      >
+                        Nenhum local encontrado para o termo digitado.
+                      </p>
+                    ) : (
+                      filteredLocais.map((local) => {
+                        const checked = selectedIds.includes(local.id);
+                        const nomeCurto =
+                          local.nome.length > 22
+                            ? local.nome.slice(0, 22) + "..."
+                            : local.nome;
+                        const enderecoCurto =
+                          local.endereco.length > 40
+                            ? local.endereco.slice(0, 40) + "..."
+                            : local.endereco;
+
+                        return (
+                          <label
+                            key={local.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              padding: "4px 6px",
+                              borderRadius: 6,
+                              cursor: "pointer",
+                              backgroundColor: checked
+                                ? "rgba(59,130,246,0.08)"
+                                : "transparent",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleLocal(local.id)}
+                            />
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: "0.85rem",
+                                  fontWeight: 500,
+                                }}
+                              >
+                                {nomeCurto}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "0.8rem",
+                                  color: "#6b7280",
+                                }}
+                              >
+                                {enderecoCurto}
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                <div style={{ marginTop: 16 }}>
+                  <h3
+                    style={{
+                      fontSize: "0.9rem",
+                      fontWeight: 500,
+                      marginBottom: 4,
+                    }}
+                  >
+                    Locais selecionados e ordem da rota
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#6b7280",
+                      marginBottom: 6,
+                    }}
+                  >
+                    Arraste os itens para definir a ordem da rota. A primeira
+                    posição será o primeiro local a ser visitado.
+                  </p>
+
+                  {selectedLocaisOrdered.length === 0 ? (
+                    <p className="card-description">
+                      Nenhum local selecionado ainda.
+                    </p>
+                  ) : (
+                    <div
+                      style={{
+                        maxHeight: 200,
+                        overflowY: "auto",
+                        borderRadius: 8,
+                        border: "1px solid #e5e7eb",
+                        padding: 8,
+                      }}
+                    >
+                      {selectedLocaisOrdered.map((local, index) => (
+                        <div
+                          key={local.id}
+                          draggable
+                          onDragStart={() => setDraggingId(local.id)}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            if (
+                              draggingId !== null &&
+                              draggingId !== local.id
+                            ) {
+                              reorderSelectedIds(draggingId, local.id);
+                            }
+                          }}
+                          onDragEnd={() => setDraggingId(null)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "6px 8px",
+                            borderRadius: 6,
+                            border: "1px solid #e5e7eb",
+                            backgroundColor:
+                              draggingId === local.id
+                                ? "rgba(59,130,246,0.12)"
+                                : "white",
+                            marginBottom: 6,
+                            cursor: "grab",
+                            gap: 8,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "0.8rem",
+                              fontWeight: 600,
+                              color: "#4b5563",
+                              minWidth: 40,
+                            }}
+                          >
+                            {index + 1}º
+                          </span>
+                          <span
+                            style={{
+                              flex: 1,
+                              fontSize: "0.85rem",
+                            }}
+                          >
+                            {local.nome}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {error && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      fontSize: "0.8rem",
+                      color: "#dc2626",
+                    }}
+                  >
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={
+                    submitting ||
+                    loading ||
+                    !motoristaId ||
+                    selectedIds.length < 2
+                  }
+                  style={{ marginTop: 16 }}
+                >
+                  {submitting ? "Criando viagem..." : "Criar viagem"}
+                </button>
+              </form>
+            )}
+          </div>
+
+          <div className="card">
+            <h2 className="card-title">Pré-visualização da rota</h2>
+            <p className="card-description">
+              O mapa abaixo mostra a rota estimada entre os locais selecionados,
+              na ordem definida na lista ao lado.
+            </p>
+
+            {routePoints.length < 2 ? (
+              <p className="card-description" style={{ marginTop: 12 }}>
+                Selecione e ordene pelo menos dois locais com coordenadas para
+                visualizar a rota.
+              </p>
+            ) : (
+              <RouteMap points={routePoints} />
+            )}
+          </div>
+        </section>
+      </AppLayout>
+    </ProtectedPage>
   );
 }

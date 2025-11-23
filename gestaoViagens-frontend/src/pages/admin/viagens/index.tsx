@@ -99,7 +99,7 @@ export default function AdminViagensPage() {
           ) : viagens.length === 0 ? (
             <p className="card-description">Nenhuma viagem registrada.</p>
           ) : (
-            <table className="table">
+            <table className="table table-viagens">
               <thead>
                 <tr>
                   <th>Nome</th>

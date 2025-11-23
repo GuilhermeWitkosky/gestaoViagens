@@ -40,13 +40,17 @@ export default function DetalheViagemMotoristaPage() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
-  async function loadViagem() {
-    if (!id) return;
+  const viagemId = useMemo(
+    () => (Array.isArray(id) ? id[0] : id),
+    [id]
+  );
+
+  async function loadViagem(currentId: string) {
     setLoading(true);
     try {
-      const resp = await apiFetch(`/api/motorista/viagens/${id}`);
+      const resp = await apiFetch(`/api/motorista/viagens/${currentId}`);
       if (resp.ok) {
-        const data = await resp.json();
+        const data = (await resp.json()) as Viagem;
         setViagem(data);
       } else {
         setViagem(null);
@@ -57,8 +61,9 @@ export default function DetalheViagemMotoristaPage() {
   }
 
   useEffect(() => {
-    loadViagem();
-  }, [id]);
+    if (!viagemId) return;
+    loadViagem(viagemId);
+  }, [viagemId]);
 
   function formatDate(value: string | null) {
     if (!value) return "-";
@@ -72,6 +77,25 @@ export default function DetalheViagemMotoristaPage() {
     [viagem]
   );
 
+  async function iniciarViagem() {
+    if (!viagemId) return;
+    setUpdating(true);
+    try {
+      // endpoint para o motorista iniciar a viagem
+      const resp = await apiFetch(
+        `/api/motorista/viagens/${viagemId}/iniciar`,
+        {
+          method: "POST",
+        }
+      );
+      if (resp.ok) {
+        await loadViagem(viagemId);
+      }
+    } finally {
+      setUpdating(false);
+    }
+  }
+
   async function marcarChegada() {
     if (!viagem || !proximoPonto) return;
     setUpdating(true);
@@ -83,7 +107,7 @@ export default function DetalheViagemMotoristaPage() {
         }
       );
       if (resp.ok) {
-        const data = await resp.json();
+        const data = (await resp.json()) as Viagem;
         setViagem(data);
       }
     } finally {
@@ -179,6 +203,17 @@ export default function DetalheViagemMotoristaPage() {
                 <p>
                   <strong>Fim:</strong> {formatDate(viagem.dataFim)}
                 </p>
+
+                {viagem.status === "PLANEJADA" && (
+                  <button
+                    onClick={iniciarViagem}
+                    disabled={updating}
+                    className="btn-primary"
+                    style={{ marginTop: 16 }}
+                  >
+                    {updating ? "Atualizando..." : "Iniciar viagem"}
+                  </button>
+                )}
 
                 {viagem.status === "EM_ANDAMENTO" && proximoPonto && (
                   <button

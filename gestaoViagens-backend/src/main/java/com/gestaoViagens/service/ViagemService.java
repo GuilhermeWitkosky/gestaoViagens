@@ -18,8 +18,15 @@ import com.gestaoViagens.repository.ViagemRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.gestaoViagens.DTO.DashboardViagensResumoResponse;
+
+
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Comparator;
+
+
 import java.util.List;
 
 @Service
@@ -146,10 +153,6 @@ public class ViagemService {
             throw new IllegalArgumentException("Motorista inativo");
         }
 
-        // if (motorista.getRole() != Role.MOTORISTA) {
-        //     throw new IllegalArgumentException("Usuário informado não é motorista");
-        // }
-
         Viagem viagem = new Viagem();
         viagem.setNome(request.nome() != null && !request.nome().isBlank()
                 ? request.nome()
@@ -226,6 +229,43 @@ public class ViagemService {
         return toResponse(salva);
     }
 
+    @Transactional
+    public ViagemResponse marcarPontoComoVisitadoComoAdmin(Long viagemId, Long pontoId) {
+        Viagem viagem = viagemRepository.findById(viagemId)
+                .orElseThrow(() -> new IllegalArgumentException("Viagem não encontrada"));
+
+        PontoRota ponto = pontoRotaRepository.findById(pontoId)
+                .orElseThrow(() -> new IllegalArgumentException("Ponto da rota não encontrado"));
+
+        if (!ponto.getViagem().getId().equals(viagemId)) {
+            throw new IllegalArgumentException("Ponto não pertence à viagem informada");
+        }
+
+        if (ponto.getStatus() == StatusPontoRota.VISITADO) {
+            return toResponse(viagem);
+        }
+
+        if (viagem.getStatus() == StatusViagem.PLANEJADA) {
+            viagem.setStatus(StatusViagem.EM_ANDAMENTO);
+            viagem.setDataInicio(LocalDateTime.now());
+        }
+
+        ponto.setStatus(StatusPontoRota.VISITADO);
+        pontoRotaRepository.save(ponto);
+
+        boolean todosVisitados = viagem.getPontos().stream()
+                .allMatch(p -> p.getStatus() == StatusPontoRota.VISITADO);
+
+        if (todosVisitados) {
+            viagem.setStatus(StatusViagem.CONCLUIDA);
+            viagem.setDataFim(LocalDateTime.now());
+        }
+
+        Viagem salva = viagemRepository.save(viagem);
+        return toResponse(salva);
+    }
+
+
     private ViagemResponse toResponse(Viagem viagem) {
         List<PontoRotaResponse> pontos = viagem.getPontos().stream()
                 .sorted(Comparator.comparing(PontoRota::getOrdem))
@@ -290,6 +330,106 @@ public class ViagemService {
         return toResponse(viagem);
     }
 
+    public DashboardViagensResumoResponse montarResumoDashboard() {
+        List<Viagem> todas = viagemRepository.findAllByOrderByDataCriacaoDesc();
+
+        long total = todas.size();
+        long totalPlanejadas = todas.stream()
+                .filter(v -> v.getStatus() == StatusViagem.PLANEJADA)
+                .count();
+        long totalEmAndamento = todas.stream()
+                .filter(v -> v.getStatus() == StatusViagem.EM_ANDAMENTO)
+                .count();
+        long totalConcluidas = todas.stream()
+                .filter(v -> v.getStatus() == StatusViagem.CONCLUIDA)
+                .count();
+
+        List<DashboardViagensResumoResponse.DashboardViagemItem> emAndamento = todas.stream()
+                .filter(v -> v.getStatus() == StatusViagem.EM_ANDAMENTO)
+                .map(this::toDashboardItem)
+                .limit(5)
+                .toList();
+
+        List<DashboardViagensResumoResponse.DashboardViagemItem> concluidas = todas.stream()
+                .filter(v -> v.getStatus() == StatusViagem.CONCLUIDA)
+                .map(this::toDashboardItem)
+                .limit(5)
+                .toList();
+
+        // agregação de viagens por motorista nos últimos 30 dias (pela data de criação)
+        LocalDateTime trintaDiasAtras = LocalDateTime.now().minusDays(30);
+
+        Map<Long, DashboardViagensResumoResponse.ViagensPorMotoristaItem> mapa = new HashMap<>();
+
+        for (Viagem v : todas) {
+            if (v.getDataCriacao() == null || v.getDataCriacao().isBefore(trintaDiasAtras)) {
+                continue;
+            }
+            Long motoristaId = v.getMotorista().getId();
+            String motoristaNome = v.getMotorista().getNome();
+
+            DashboardViagensResumoResponse.ViagensPorMotoristaItem atual = mapa.get(motoristaId);
+            if (atual == null) {
+                mapa.put(
+                        motoristaId,
+                        new DashboardViagensResumoResponse.ViagensPorMotoristaItem(
+                                motoristaId,
+                                motoristaNome,
+                                1L
+                        )
+                );
+            } else {
+                mapa.put(
+                        motoristaId,
+                        new DashboardViagensResumoResponse.ViagensPorMotoristaItem(
+                                motoristaId,
+                                atual.motoristaNome(),
+                                atual.quantidadeViagens() + 1
+                        )
+                );
+            }
+        }
+
+        List<DashboardViagensResumoResponse.ViagensPorMotoristaItem> viagensPorMotoristaUltimos30Dias =
+                mapa.values().stream()
+                        .sorted(Comparator.comparingLong(
+                                DashboardViagensResumoResponse.ViagensPorMotoristaItem::quantidadeViagens
+                        ).reversed())
+                        .limit(8) // mostra até 8 motoristas no gráfico
+                        .toList();
+
+        return new DashboardViagensResumoResponse(
+                total,
+                totalPlanejadas,
+                totalEmAndamento,
+                totalConcluidas,
+                emAndamento,
+                concluidas,
+                viagensPorMotoristaUltimos30Dias
+        );
+    }
+
+    private DashboardViagensResumoResponse.DashboardViagemItem toDashboardItem(Viagem v) {
+        int totalPontos = v.getPontos() != null ? v.getPontos().size() : 0;
+
+        int pontosVisitados = v.getPontos() != null
+                ? (int) v.getPontos().stream()
+                .filter(p -> p.getStatus() == StatusPontoRota.VISITADO)
+                .count()
+                : 0;
+
+        return new DashboardViagensResumoResponse.DashboardViagemItem(
+                v.getId(),
+                v.getNome(),
+                v.getMotorista() != null ? v.getMotorista().getNome() : null,
+                v.getStatus(),
+                v.getDataCriacao(),
+                v.getDataInicio(),
+                v.getDataFim(),
+                totalPontos,
+                pontosVisitados
+        );
+    }
 
 
 }

@@ -410,6 +410,11 @@ button {
   font-size: 0.85rem;
 }
 
+.table th {
+  text-align: center;
+  vertical-align: middle;
+}
+
 .table th,
 .table td {
   padding: 8px 6px;
@@ -425,6 +430,12 @@ button {
 
 .table tr:nth-child(even) td {
   background: #f9fbff;
+}
+
+.table-viagens th,
+.table-viagens td {
+  text-align: center;
+  vertical-align: middle;
 }
 
 .badge-status {
@@ -478,3 +489,51 @@ button {
   }
 }
 
+/* Botões compactos para usar em tabelas (ações) */
+.btn-primary.btn-compact,
+.btn-ghost.btn-compact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  margin-top: 0;
+}
+
+.chart-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.chart-bar-label {
+  max-width: 160px;
+  font-size: 0.8rem;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-bar-track {
+  flex: 1;
+  height: 10px;
+  background-color: #e5e7eb;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.chart-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  border-radius: 9999px;
+}
+
+.chart-bar-value {
+  width: 32px;
+  text-align: right;
+  font-size: 0.8rem;
+  color: #111827;
+}

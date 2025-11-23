@@ -27,30 +27,53 @@ const adminItems: NavItem[] = [
 const motoristaItems: NavItem[] = [
   { label: "Minhas viagens", href: "/motorista/viagens" },
   { label: "Criar viagem", href: "/motorista/viagens/nova" },
+  { label: "Locais", href: "/admin/locais" },
 ];
 
 export function AppLayout({ children, role }: Props) {
   const router = useRouter();
   const { user, logout } = useAuth();
 
+  // Se o usuário estiver logado, usamos o role real dele.
+  // O "role" passado por props vira apenas um fallback.
+  const effectiveRole: Role = (user?.role as Role) ?? role;
+
   const items = useMemo(
-    () => (role === "ADMIN" ? adminItems : motoristaItems),
-    [role]
+    () => (effectiveRole === "ADMIN" ? adminItems : motoristaItems),
+    [effectiveRole]
   );
 
   function isActive(href: string) {
     const path = router.pathname;
-  
+
+    // match exato
     if (path === href) return true;
-  
-    const segments = href.split("/");
-    if (segments.length > 2 && path.startsWith(href + "/")) {
+
+    // detalhes de viagens do ADMIN: /admin/viagens/[id]
+    if (href === "/admin/viagens" && path.startsWith("/admin/viagens/")) {
       return true;
     }
-  
+
+    // detalhes de viagens do MOTORISTA: /motorista/viagens/[id]
+    // mas não marcar quando for /motorista/viagens/nova
+    if (
+      href === "/motorista/viagens" &&
+      path.startsWith("/motorista/viagens/") &&
+      path !== "/motorista/viagens/nova"
+    ) {
+      return true;
+    }
+
+    // criar viagem motorista
+    if (
+      href === "/motorista/viagens/nova" &&
+      path === "/motorista/viagens/nova"
+    ) {
+      return true;
+    }
+
     return false;
   }
-  
 
   return (
     <div className="app-shell">
@@ -62,7 +85,7 @@ export function AppLayout({ children, role }: Props) {
           <div>
             <div className="sidebar-title">TripFlow</div>
             <div className="sidebar-badge">
-              {role === "ADMIN" ? "Admin" : "Motorista"}
+              {effectiveRole === "ADMIN" ? "Admin" : "Motorista"}
             </div>
           </div>
         </div>
@@ -71,26 +94,30 @@ export function AppLayout({ children, role }: Props) {
           {user && (
             <>
               <strong>{user.email}</strong>
-              <span>{role === "ADMIN" ? "Administrador" : "Motorista"}</span>
+              <span>
+                {effectiveRole === "ADMIN" ? "Administrador" : "Motorista"}
+              </span>
             </>
           )}
         </div>
 
         <div className="sidebar-nav-title">Navegação</div>
         <nav className="sidebar-nav">
-        {items.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`sidebar-link ${isActive(item.href) ? "active" : ""}`}
-          >
-            <div className="sidebar-link-icon" />
-            <span className="sidebar-link-label">{item.label}</span>
-            {isActive(item.href) && (
-              <span style={{ fontSize: "0.7rem", opacity: 0.85 }}>•</span>
-            )}
-          </Link>
-        ))}
+          {items.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`sidebar-link ${
+                isActive(item.href) ? "active" : ""
+              }`}
+            >
+              <div className="sidebar-link-icon" />
+              <span className="sidebar-link-label">{item.label}</span>
+              {isActive(item.href) && (
+                <span style={{ fontSize: "0.7rem", opacity: 0.85 }}>•</span>
+              )}
+            </Link>
+          ))}
         </nav>
 
         <div className="sidebar-footer">

@@ -18,7 +18,7 @@ public class LocalController {
 
     @GetMapping
     public List<LocalResponse> listar() {
-        return localService.listarAtivos();
+        return localService.listarTodos();
     }
 
     @PostMapping
@@ -42,6 +42,9 @@ public class LocalController {
         return ResponseEntity.noContent().build();
     }
 
-
-
+    @PostMapping("/{id}/ativar")
+    public ResponseEntity<Void> ativar(@PathVariable Long id) {
+        localService.ativar(id);
+        return ResponseEntity.noContent().build();
+    }
 }

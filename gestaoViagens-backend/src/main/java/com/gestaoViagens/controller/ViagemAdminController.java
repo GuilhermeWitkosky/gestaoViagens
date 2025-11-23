@@ -2,6 +2,7 @@ package com.gestaoViagens.controller;
 
 import com.gestaoViagens.DTO.ViagemCreateRequest;
 import com.gestaoViagens.DTO.ViagemResponse;
+import com.gestaoViagens.DTO.DashboardViagensResumoResponse;
 import com.gestaoViagens.service.ViagemService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -38,6 +39,21 @@ public class ViagemAdminController {
     public ResponseEntity<ViagemResponse> iniciarViagem(@PathVariable Long id) {
         ViagemResponse viagemResponse = viagemService.iniciarViagem(id);
         return ResponseEntity.ok(viagemResponse);
+    }
+
+    @PostMapping("/{id}/pontos/{pontoId}/visitar")
+    public ResponseEntity<ViagemResponse> visitarPontoComoAdmin(
+            @PathVariable Long id,
+            @PathVariable Long pontoId
+    ) {
+        ViagemResponse response = viagemService.marcarPontoComoVisitadoComoAdmin(id, pontoId);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/dashboard")
+    public ResponseEntity<DashboardViagensResumoResponse> resumoDashboard() {
+        DashboardViagensResumoResponse response = viagemService.montarResumoDashboard();
+        return ResponseEntity.ok(response);
     }
 
 }

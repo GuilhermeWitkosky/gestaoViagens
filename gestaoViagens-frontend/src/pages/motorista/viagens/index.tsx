@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { ProtectedPage } from "../../../components/ProtectedPage";
 import { AppLayout } from "../../../components/AppLayout";
 import { apiFetch } from "../../../services/api";
 
+type StatusViagem = "PLANEJADA" | "EM_ANDAMENTO" | "CONCLUIDA";
+
 type PontoRota = {
   id: number;
   ordem: number;
-  status: string;
+  status: "PENDENTE" | "VISITADO";
   localId: number | null;
   localNome: string | null;
   localEndereco: string | null;
@@ -21,35 +22,25 @@ type PontoRota = {
 type Viagem = {
   id: number;
   nome: string;
-  status: string;
-  dataCriacao: string;
+  status: StatusViagem;
+  dataCriacao: string | null;
   dataInicio: string | null;
   dataFim: string | null;
   motoristaNome: string | null;
   pontos: PontoRota[];
 };
 
-function formatDate(value?: string | null) {
+function formatDate(value: string | null) {
   if (!value) return "-";
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleString("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString("pt-BR");
 }
 
-function formatStatus(status: string) {
-  switch (status) {
-    case "PLANEJADA":
-      return "Planejada";
-    case "EM_ANDAMENTO":
-      return "Em andamento";
-    case "CONCLUIDA":
-      return "Concluída";
-    default:
-      return status;
-  }
+function statusClass(status: StatusViagem) {
+  if (status === "PLANEJADA") return "badge-status planejada";
+  if (status === "EM_ANDAMENTO") return "badge-status em-andamento";
+  return "badge-status concluida";
 }
 
 export default function MotoristaViagensPage() {
@@ -57,22 +48,28 @@ export default function MotoristaViagensPage() {
   const [viagens, setViagens] = useState<Viagem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const resp = await apiFetch("/api/motorista/viagens");
-        if (resp.ok) {
-          const data = (await resp.json()) as Viagem[];
-          setViagens(data);
-        } else {
-          setViagens([]);
-        }
-      } finally {
-        setLoading(false);
+  async function loadViagens() {
+    setLoading(true);
+    try {
+      const resp = await apiFetch("/api/motorista/viagens");
+      if (resp.ok) {
+        const data = (await resp.json()) as Viagem[];
+        setViagens(data);
+      } else {
+        setViagens([]);
       }
+    } finally {
+      setLoading(false);
     }
-    load();
+  }
+
+  useEffect(() => {
+    loadViagens();
+    const interval = setInterval(() => {
+      loadViagens();
+    }, 15000); // atualiza a cada 15s, igual à tela de admin
+
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -113,25 +110,36 @@ export default function MotoristaViagensPage() {
                   <th>Início</th>
                   <th>Fim</th>
                   <th>Pontos</th>
-                  <th></th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {viagens.map((v) => (
                   <tr key={v.id}>
                     <td>{v.nome}</td>
-                    <td>{formatStatus(v.status)}</td>
+                    <td>
+                      <span className={statusClass(v.status)}>
+                        {v.status === "EM_ANDAMENTO"
+                          ? "Em andamento"
+                          : v.status === "PLANEJADA"
+                          ? "Planejada"
+                          : "Concluída"}
+                      </span>
+                    </td>
                     <td>{formatDate(v.dataCriacao)}</td>
                     <td>{formatDate(v.dataInicio)}</td>
                     <td>{formatDate(v.dataFim)}</td>
                     <td>{v.pontos?.length ?? 0}</td>
                     <td>
-                      <Link
-                        href={`/motorista/viagens/${v.id}`}
-                        className="btn-secondary"
+                      <button
+                        type="button"
+                        className="btn-ghost"
+                        onClick={() =>
+                          router.push(`/motorista/viagens/${v.id}`)
+                        }
                       >
-                        Abrir
-                      </Link>
+                        Ver detalhes
+                      </button>
                     </td>
                   </tr>
                 ))}

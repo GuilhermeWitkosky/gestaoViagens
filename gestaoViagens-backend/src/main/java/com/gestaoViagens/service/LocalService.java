@@ -2,14 +2,11 @@ package com.gestaoViagens.service;
 
 import com.gestaoViagens.DTO.LocalRequest;
 import com.gestaoViagens.DTO.LocalResponse;
-import com.gestaoViagens.DTO.UsuarioMotoristaResumoResponse;
-import com.gestaoViagens.ENUM.Role;
 import com.gestaoViagens.entity.Local;
 import com.gestaoViagens.repository.LocalRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -22,6 +19,12 @@ public class LocalService {
 
     public List<LocalResponse> listarAtivos() {
         return localRepository.findByAtivoTrue().stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public List<LocalResponse> listarTodos() {
+        return localRepository.findAll().stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -62,6 +65,14 @@ public class LocalService {
         localRepository.save(local);
     }
 
+    public void ativar(Long id) {
+        Local local = localRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Local não encontrado"));
+
+        local.setAtivo(true);
+        localRepository.save(local);
+    }
+
     private LocalResponse toResponse(Local local) {
         return new LocalResponse(
                 local.getId(),
@@ -73,4 +84,5 @@ public class LocalService {
                 local.isAtivo()
         );
     }
+
 }

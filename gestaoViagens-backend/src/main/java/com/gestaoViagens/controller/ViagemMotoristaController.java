@@ -57,4 +57,10 @@ public class ViagemMotoristaController {
         ViagemResponse response = viagemService.marcarPontoComoVisitado(id, pontoId, email);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/{id}/iniciar")
+    public ResponseEntity<ViagemResponse> iniciarViagem(@PathVariable Long id) {
+        ViagemResponse viagemResponse = viagemService.iniciarViagem(id);
+        return ResponseEntity.ok(viagemResponse);
+    }
 }

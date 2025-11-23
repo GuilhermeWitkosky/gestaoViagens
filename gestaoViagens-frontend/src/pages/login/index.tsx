@@ -1,17 +1,28 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { AuthLayout } from "../../components/AuthLayout";
 import { useAuth } from "../../hooks/useAuth";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Após autenticar (ou se já estiver logado), redireciona conforme o perfil
+  useEffect(() => {
+    if (!loading && user) {
+      if (user.role === "ADMIN") {
+        router.replace("/");
+      } else {
+        router.replace("/motorista/viagens");
+      }
+    }
+  }, [user, loading, router]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -19,7 +30,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email, senha);
-      router.push("/");
+      // redirecionamento acontece no useEffect acima
     } catch (err) {
       setError("Credenciais inválidas. Verifique usuário e senha.");
     } finally {

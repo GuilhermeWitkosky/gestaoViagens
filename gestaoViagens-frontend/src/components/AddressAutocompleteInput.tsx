@@ -74,8 +74,10 @@ export function AddressAutocompleteInput({
       ref={inputRef}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      style={{ width: "100%", padding: 8, marginTop: 4 }}
+      className="input"
+      style={{ marginTop: 4 }}
       placeholder="Digite o endereço"
     />
   );
+
 }

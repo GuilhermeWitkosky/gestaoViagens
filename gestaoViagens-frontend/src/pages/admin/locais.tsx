@@ -29,6 +29,8 @@ export default function LocaisPage() {
   const [locais, setLocais] = useState<Local[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
   const [form, setForm] = useState<LocalForm>({
     nome: "",
     endereco: "",
@@ -42,7 +44,7 @@ export default function LocaisPage() {
     try {
       const resp = await apiFetch("/api/admin/locais");
       if (resp.ok) {
-        const data = await resp.json();
+        const data = (await resp.json()) as Local[];
         setLocais(data);
       } else {
         setLocais([]);
@@ -63,6 +65,17 @@ export default function LocaisPage() {
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
+  function resetForm() {
+    setEditingId(null);
+    setForm({
+      nome: "",
+      endereco: "",
+      latitude: "",
+      longitude: "",
+      observacoes: "",
+    });
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -75,35 +88,75 @@ export default function LocaisPage() {
         observacoes: form.observacoes || null,
       };
 
-      const resp = await apiFetch("/api/admin/locais", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+      const url = editingId
+        ? `/api/admin/locais/${editingId}`
+        : "/api/admin/locais";
+      const method = editingId ? "PUT" : "POST";
+
+      const resp = await apiFetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
 
-      if (resp.ok) {
-        setForm({
-          nome: "",
-          endereco: "",
-          latitude: "",
-          longitude: "",
-          observacoes: "",
-        });
-        await loadLocais();
+      if (!resp.ok) {
+        alert(
+          editingId
+            ? "Erro ao atualizar local."
+            : "Erro ao cadastrar local."
+        );
+        return;
       }
+
+      resetForm();
+      await loadLocais();
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleDesativar(id: number) {
-    const resp = await apiFetch(`/api/admin/locais/${id}`, {
-      method: "DELETE",
+  function handleEditar(local: Local) {
+    setEditingId(local.id);
+    setForm({
+      nome: local.nome,
+      endereco: local.endereco,
+      latitude: local.latitude != null ? String(local.latitude) : "",
+      longitude: local.longitude != null ? String(local.longitude) : "",
+      observacoes: local.observacoes ?? "",
     });
-    if (resp.ok || resp.status === 204) {
+  }
+
+  async function handleToggleAtivo(local: Local) {
+    const mensagem = local.ativo
+      ? "Tem certeza que deseja desativar este local?"
+      : "Tem certeza que deseja ativar este local?";
+
+    const confirma = window.confirm(mensagem);
+    if (!confirma) return;
+
+    try {
+      let resp: Response;
+
+      if (local.ativo) {
+        // desativar
+        resp = await apiFetch(`/api/admin/locais/${local.id}`, {
+          method: "DELETE",
+        });
+      } else {
+        // ativar (usa o endpoint que você já tem)
+        resp = await apiFetch(`/api/admin/locais/${local.id}/ativar`, {
+          method: "POST",
+        });
+      }
+
+      if (!resp.ok && resp.status !== 204) {
+        alert("Erro ao alterar situação do local.");
+        return;
+      }
+
       await loadLocais();
+    } catch {
+      alert("Erro ao alterar situação do local.");
     }
   }
 
@@ -117,7 +170,7 @@ export default function LocaisPage() {
       : null;
 
   return (
-    <ProtectedPage allowedRoles={["ADMIN"]}>
+    <ProtectedPage allowedRoles={["ADMIN", "MOTORISTA"]}>
       <AppLayout role="ADMIN">
         <div className="page-header">
           <div>
@@ -128,12 +181,19 @@ export default function LocaisPage() {
           </div>
         </div>
 
+        {/* Layout igual ao original: formulário + mapa na esquerda, tabela na direita */}
         <section className="form-grid">
+          {/* ESQUERDA: formulário + mapa abaixo */}
           <div className="card">
-            <h2 className="card-title">Novo local</h2>
+            <h2 className="card-title">
+              {editingId ? "Editar local" : "Novo local"}
+            </h2>
             <p className="card-description">
-              Busque o endereço e refine a posição no mapa, se necessário.
+              {editingId
+                ? "Ajuste os dados do local e salve para atualizar."
+                : "Busque o endereço e refine a posição no mapa, se necessário."}
             </p>
+
             <form onSubmit={handleSubmit}>
               <label className="field-label">Nome</label>
               <input
@@ -199,10 +259,17 @@ export default function LocaisPage() {
                 className="btn-primary"
                 style={{ marginTop: 14 }}
               >
-                {submitting ? "Salvando..." : "Salvar local"}
+                {submitting
+                  ? editingId
+                    ? "Atualizando..."
+                    : "Salvando..."
+                  : editingId
+                  ? "Atualizar local"
+                  : "Salvar local"}
               </button>
             </form>
 
+            {/* Mapa logo abaixo do formulário, como era antes */}
             <div style={{ marginTop: 18 }}>
               <h3
                 style={{
@@ -228,6 +295,7 @@ export default function LocaisPage() {
             </div>
           </div>
 
+          {/* DIREITA: tabela de locais */}
           <div className="card">
             <h2 className="card-title">Locais cadastrados</h2>
             {loading ? (
@@ -238,30 +306,79 @@ export default function LocaisPage() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Nome</th>
-                    <th>Endereço</th>
-                    <th>Lat</th>
-                    <th>Lng</th>
-                    <th>Ações</th>
+                    <th style={{ textAlign: "center" }}>Nome</th>
+                    <th style={{ textAlign: "center" }}>Endereço</th>
+                    <th style={{ textAlign: "center" }}>Lat</th>
+                    <th style={{ textAlign: "center" }}>Lng</th>
+                    <th style={{ textAlign: "center" }}>Situação</th>
+                    <th style={{ textAlign: "center" }}>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {locais.map((local) => (
-                    <tr key={local.id}>
-                      <td>{local.nome}</td>
-                      <td>{local.endereco}</td>
-                      <td>{local.latitude ?? "-"}</td>
-                      <td>{local.longitude ?? "-"}</td>
-                      <td>
-                        <button
-                          className="btn-ghost"
-                          onClick={() => handleDesativar(local.id)}
+                  {locais.map((local) => {
+                    const nomeCurto =
+                      local.nome.length > 32
+                        ? local.nome.slice(0, 32) + "..."
+                        : local.nome;
+                    const enderecoCurto =
+                      local.endereco.length > 42
+                        ? local.endereco.slice(0, 42) + "..."
+                        : local.endereco;
+
+                    return (
+                      <tr key={local.id}>
+                        <td
+                          style={{ textAlign: "center" }}
+                          title={local.nome}
                         >
-                          Desativar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                          {nomeCurto}
+                        </td>
+                        <td
+                          style={{ textAlign: "center" }}
+                          title={local.endereco}
+                        >
+                          {enderecoCurto}
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          {local.latitude != null
+                            ? local.latitude.toFixed(2)
+                            : "-"}
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          {local.longitude != null
+                            ? local.longitude.toFixed(2)
+                            : "-"}
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          {local.ativo ? "Ativo" : "Inativo"}
+                        </td>
+                        <td>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <button
+                            type="button"
+                            className="btn-primary btn-compact"
+                            onClick={() => handleEditar(local)}
+                          >
+                            Editar
+                          </button>
+                            <button
+                              type="button"
+                              className="btn-ghost"
+                              onClick={() => handleToggleAtivo(local)}
+                            >
+                              {local.ativo ? "Desativar" : "Ativar"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}

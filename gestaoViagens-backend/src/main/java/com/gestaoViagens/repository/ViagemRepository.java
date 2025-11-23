@@ -8,7 +8,6 @@ import java.util.List;
 
 public interface ViagemRepository extends JpaRepository<Viagem, Long> {
 
-    List<Viagem> findByMotoristaIdOrderByDataCriacaoDesc(Usuario motorista);
-
     List<Viagem> findAllByOrderByDataCriacaoDesc();
+
 }

@@ -68,4 +68,40 @@ public class UsuarioAdminService {
                 ))
                 .toList();
     }
+
+    @Transactional
+    public UsuarioAdminResponse atualizar(Long id, UsuarioAdminRequest request) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+
+        usuario.setNome(request.nome());
+        usuario.setEmail(request.email());
+        usuario.setRole(request.role());
+
+        // Se vier senha preenchida, troca; senão mantém a senha atual
+        if (request.senha() != null && !request.senha().isBlank()) {
+            usuario.setSenha(passwordEncoder.encode(request.senha()));
+        }
+
+        Usuario salvo = usuarioRepository.save(usuario);
+        return toResponse(salvo);
+    }
+
+    @Transactional
+    public void desativar(Long id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+
+        usuario.setAtivo(false);
+        usuarioRepository.save(usuario);
+    }
+
+    @Transactional
+    public void ativar(Long id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+
+        usuario.setAtivo(true);
+        usuarioRepository.save(usuario);
+    }
 }

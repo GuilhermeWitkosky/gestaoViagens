@@ -30,6 +30,27 @@ public class UsuarioAdminController {
         return ResponseEntity.ok(created);
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<UsuarioAdminResponse> atualizar(
+            @PathVariable Long id,
+            @RequestBody UsuarioAdminRequest request
+    ) {
+        UsuarioAdminResponse atualizado = usuarioAdminService.atualizar(id, request);
+        return ResponseEntity.ok(atualizado);
+    }
+
+    @PostMapping("/{id}/ativar")
+    public ResponseEntity<Void> ativar(@PathVariable Long id) {
+        usuarioAdminService.ativar(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> desativar(@PathVariable Long id) {
+        usuarioAdminService.desativar(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/motoristas")
     public List<UsuarioMotoristaResumoResponse> listarMotoristas() {
         return usuarioAdminService.listarMotoristasAtivos();
