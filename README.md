@@ -158,14 +158,14 @@ Usuário padrão (exemplo, ambiente local):
 🚛 Motorista: motorista@tripflow.com / motorista123
 
 🌐 7. Frontend – configuração e execução
-Na pasta gestaoViagens-frontend/gestao:
+Na pasta gestaoViagens-frontend:
 
 📦 7.1. Instalar dependências
 
 npm install
 
 🔐 7.2. Variáveis de ambiente (.env.local)
-Crie o arquivo .env.local em gestaoViagens-frontend/gestao:
+Crie o arquivo .env.local em gestaoViagens-frontend:
 
 touch .env.local
 
@@ -178,7 +178,7 @@ NEXT_PUBLIC_API_BASE_URL é usado pelos serviços do frontend para chamar a API 
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY será usado nos componentes de mapa/autocomplete.
 
 ▶️ 7.3. Executando o frontend
-Ainda em gestaoViagens-frontend/gestao:
+Ainda em gestaoViagens-frontend:
 
 npm run dev
 
