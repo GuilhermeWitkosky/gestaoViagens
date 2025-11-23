@@ -37,17 +37,15 @@ export function AddressAutocompleteInput({
         if (cancelled) return;
         if (!inputRef.current) return;
 
-        // Definindo as coordenadas de Jaraguá do Sul, SC
         const location = new window.google.maps.LatLng(-26.4851, -49.0713); // Latitude e Longitude de Jaraguá do Sul, SC
         const radius = 10000; // Raio de 10 km
 
-        // Criando o serviço de autocomplete com o parâmetro de localização e raio
         autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
-          types: ["geocode", "establishment"], // Agora inclui estabelecimentos
-          fields: ["formatted_address", "geometry", "name", "place_id"], // Incluindo o nome e id do local
+          types: ["geocode", "establishment"],
+          fields: ["formatted_address", "geometry", "name", "place_id"],
           componentRestrictions: { country: "BR" }, // Restringe para resultados no Brasil
-          bounds: new window.google.maps.LatLngBounds(location), // Configura a localização central
-          radius, // Define o raio de pesquisa em metros
+          bounds: new window.google.maps.LatLngBounds(location),
+          radius,
         });
 
         listener = autocompleteRef.current.addListener("place_changed", () => {
