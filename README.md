@@ -249,8 +249,4 @@ Reinicie o servidor do Next (npm run dev) para garantir que o valor foi carregad
 📝 9. Observações
 🔒 Projeto focado em ambiente local e fins acadêmicos; ajustes de segurança, logs, monitoramento e deploy em produção devem ser feitos à parte.
 
-💰 A cobrança da Google Cloud para uso de Maps/Places depende da sua conta e limites gratuitos; verifique sempre o painel de faturamento da GCP.
-
-makefile
-Copiar código
-::contentReference[oaicite:0]{index=0}
+💰 A cobrança da Google Cloud para uso de Maps/Places depende da sua conta e limites gratuitos; verifique sempre o painel de faturamento.
