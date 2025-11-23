@@ -145,7 +145,9 @@ A aplicação está configurada para criar/atualizar as tabelas automaticamente 
 Na pasta gestaoViagens-backend:
 
 mvn spring-boot:run
-# ou rodar a classe GestaoViagensApplication pela IDE
+
+ou rodar a classe GestaoViagensApplication pela IDE
+
 A API ficará disponível em:
 http://localhost:8080
 
